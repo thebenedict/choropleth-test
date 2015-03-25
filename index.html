@@ -1,0 +1,162 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+  <title>Leaflet Choropleth</title>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <link rel="stylesheet" href="http://cdn.leafletjs.com/leaflet-0.7.3/leaflet.css" />
+  <style>
+    .info {
+      padding: 6px 8px;
+      font: 14px/16px Arial, Helvetica, sans-serif;
+      background: white;
+      background: rgba(255,255,255,0.8);
+      box-shadow: 0 0 15px rgba(0,0,0,0.2);
+      border-radius: 5px;
+    }
+    .info h4 {
+        margin: 0 0 5px;
+        color: #777;
+    }
+    .legend {
+        line-height: 18px;
+        color: #555;
+    }
+    .legend i {
+        width: 18px;
+        height: 18px;
+        float: left;
+        margin-right: 8px;
+        opacity: 0.7;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="map" style="height: 720px; width: 1024px"></div>
+</body>
+
+<script src="jquery-2.1.3.min.js"></script>
+<script src="http://cdn.leafletjs.com/leaflet-0.7.3/leaflet.js"></script>
+<script>
+  var COLORS = ['#002628','#01393d','#014b51','#01575d','#017179','#01848d','#0297a2','#02aab6']
+  //['#01575d','#045156','#074b50','#0a454a','#0d3f44','#10393e','#133338','#172e32']
+  //['#6d223f','#8c2c51','#ab3663','#c44576','#ce648d','#d883a3','#e2a2ba']
+
+  var layer = L.tileLayer('http://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',{
+    attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="http://cartodb.com/attributions">CartoDB</a>'
+  });
+
+  var map = L.map('map', {
+      scrollWheelZoom: false,
+      center: [25.8852653,9.7530427],
+      zoom: 2
+  });
+
+  // INFO POPUP
+  var info = L.control();
+
+  info.onAdd = function (map) {
+      this._div = L.DomUtil.create('div', 'info'); // create a div with a class "info"
+      this.update();
+      return this._div;
+  };
+
+  // method that we will use to update the control based on feature properties passed
+  info.update = function (props) {
+      this._div.innerHTML = '<h4>Cookstove deployment</h4>' +  (props ?
+          '<b>' + props.name + '</b><br />' + props.value + ' stoves deployed'
+          : 'Hover over a country');
+  };
+
+  info.addTo(map);
+
+  var legend = L.control({position: 'bottomright'});
+
+  // LEGEND
+  legend.onAdd = function (map) {
+
+      var div = L.DomUtil.create('div', 'info legend'),
+          grades = [0, 10, 20, 50, 100, 200, 500, 1000],
+          labels = [];
+
+      // loop through our density intervals and generate a label with a colored square for each interval
+      for (var i = 0; i < grades.length; i++) {
+          div.innerHTML +=
+              '<i style="background:' + getColor(grades[i] + 1) + '"></i> ' +
+              grades[i] + (grades[i + 1] ? '&ndash;' + grades[i + 1] + '<br>' : '+');
+      }
+
+      return div;
+  };
+
+  legend.addTo(map);
+
+  function onEachFeature(feature, layer) {
+    layer.on({
+        mouseover: highlightFeature,
+        mouseout: resetHighlight,
+        //click: zoomToFeature
+    });
+  }
+
+  map.addLayer(layer);
+  
+  var worldData = new L.geoJson([],{style: style, onEachFeature: onEachFeature});
+  worldData.addTo(map);
+
+  $.ajax({
+  dataType: "json",
+  url: "./data.json",
+  success: function(data) {
+      $(data.features).each(function(key, data) {
+          worldData.addData(data);
+      });
+  }
+  }).error(function() {});
+
+  function getColor(d) {
+    return d > 1000 ? COLORS[0] :
+           d > 500  ? COLORS[1] :
+           d > 200  ? COLORS[2] :
+           d > 100  ? COLORS[3] :
+           d > 50   ? COLORS[4] :
+           d > 20   ? COLORS[5] :
+           d > 10   ? COLORS[6] :
+                      COLORS[7];
+  }
+
+  function highlightFeature(e) {
+      var layer = e.target;
+
+      layer.setStyle({
+          weight: 1,
+          color: '#ce648d',//'#666',
+          dashArray: '',
+          fillOpacity: 0.7
+      });
+
+      info.update(layer.feature.properties);
+
+      if (!L.Browser.ie && !L.Browser.opera) {
+          layer.bringToFront();
+      }
+  }
+
+  function resetHighlight(e) {
+    worldData.resetStyle(e.target);
+    info.update();
+  }
+
+  function style(feature) {
+    return {
+        fillColor: getColor(feature.properties.value),
+        weight: 2,
+        opacity: .8,
+        color: '#eee',
+        dashArray: '',
+        fillOpacity: 0.7
+    };
+  }
+
+</script>
+</html>
